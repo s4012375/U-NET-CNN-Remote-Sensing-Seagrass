@@ -37,6 +37,35 @@ control_testing = []
 cross_ref_training = {}
 cross_ref_testing = {}
 
+def get_dataset(
+    batch_size,
+    img_size,
+    input_img_paths,
+    target_img_paths,
+    max_dataset_len=None,
+):
+    def load_img_masks(input_img_path, target_img_path):
+        input_img = tf_io.read_file(input_img_path)
+        input_img = tf_io.decode_png(input_img, channels=3)
+        input_img = tf_image.resize(input_img, img_size)
+        input_img = tf_image.convert_image_dtype(input_img, "float32")
+
+        target_img = tf_io.read_file(target_img_path)
+        target_img = tf_io.decode_png(target_img, channels=1)
+        target_img = tf_image.resize(target_img, img_size, method="nearest")
+        target_img = tf_image.convert_image_dtype(target_img, "uint8")
+
+        # Ground truth labels are 1, 2, 3. Subtract one to make them 0, 1, 2:
+        target_img -= 1
+        return input_img, target_img
+
+    # For faster debugging, limit the size of data
+    if max_dataset_len:
+        input_img_paths = input_img_paths[:max_dataset_len]
+        target_img_paths = target_img_paths[:max_dataset_len]
+    dataset = tf_data.Dataset.from_tensor_slices((input_img_paths, target_img_paths))
+    dataset = dataset.map(load_img_masks, num_parallel_calls=tf_data.AUTOTUNE)
+    return dataset.batch(batch_size)
 
 def random_sample(all_TCI_patches, all_GT_patches, sample_size):
     training_TCI_patches = []
@@ -74,11 +103,11 @@ def getModelDataset(model):
                 for y in range(0, patch_size[1]+1):
                     with rasterio.open('.\\TCI\\%s\\Patches\\%s_image_%d_%d.tif'%(training_tile, patch_name, x, y), 'r') as ds:
                         tci_rgb = ds.read()
-                        tci_rgb = np.moveaxis(tci_rgb, 0, 2)
+                        #tci_rgb = np.moveaxis(tci_rgb, 0, 2) # SEMANTIC SEGMENTATION WANTS IN ORIGINAL ORDER
                         tile_TCI_patches.append(tci_rgb)
                     with rasterio.open('.\\ground-truth\\%s\\Patches\\%s_image_%d_%d.tif'%(training_tile, patch_name, x, y), 'r') as ds:
                         ground_truth_patch = ds.read()
-                        ground_truth_patch = np.moveaxis(ground_truth_patch, 0, 2)
+                        #ground_truth_patch = np.moveaxis(ground_truth_patch, 0, 2) # SEMANTIC SEGMENTATION WANTS IN ORIGINAL ORDER
                         tile_GT_patches.append(ground_truth_patch)
                         
         # Create sample of x% training and y% testing           
@@ -90,14 +119,21 @@ def getModelDataset(model):
     print("Retrieved base model training and testing data...")
     return (np.array(base_model_training_ds), np.array(base_model_training_target), np.array(base_model_testing_ds), np.array(base_model_testing_target))
 
-
-training_TCI_ds, training_target_ds, testing_TCI_ds, testing_target_ds = getModelDataset('1')
+MODEL = '1'
+training_TCI_ds, training_target_ds, testing_TCI_ds, testing_target_ds = getModelDataset(MODEL)
 print("Generated training inputs with ",training_TCI_ds.shape[0], ' images ', training_TCI_ds.shape[1], 'x', training_TCI_ds.shape[2], 'px with ', training_TCI_ds.shape[3], ' bands/channels')
 print("Generated training targets with ",training_target_ds.shape[0], ' images ', training_target_ds.shape[1], 'x', training_target_ds.shape[2], 'px with ', training_target_ds.shape[3], ' bands/channels')
 print("Generated testing inputs with ",testing_TCI_ds.shape[0], ' images ', testing_TCI_ds.shape[1], 'x', testing_TCI_ds.shape[2], 'px with ', testing_TCI_ds.shape[3], ' bands/channels')
 print("Generated testing targets with ",testing_target_ds.shape[0], ' images ', testing_target_ds.shape[1], 'x', testing_target_ds.shape[2], 'px with ', testing_target_ds.shape[3], ' bands/channels')
 
-raw_model = cnn_model.getTrainableModel('imagenet',True)
+raw_model = cnn_model.getSemanticSegmentationModel(True)
 base_model = cnn_model.base_model_train(training_TCI_ds, training_target_ds, raw_model)
+results = base_model.predict(testing_TCI_ds, batch_size=4)
+stats = base_model.evaluate(testing_TCI_ds, testing_target_ds, batch_size = 4)
+i = 0
+for result in results:
+    tiff.imwrite('./RESULTS/model ' + MODEL + '/original_test_'+i+'.tif', result)
+    print('Outputed results patch ', i)
+area_i = area_i + 1
 
 

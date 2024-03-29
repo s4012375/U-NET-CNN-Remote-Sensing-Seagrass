@@ -1,231 +1,31 @@
 import keras
-from keras import layers
-from keras import ops
 import numpy as np
-import tensorflow as tf
-from tensorflow import data as tf_data
-from tensorflow import image as tf_image
-from tensorflow import io as tf_io
-import os
-import random
 
-input_dir = ".\\TCI\\20170717\\Patches"
-target_dir = ".\\ground-truth\\20170717\\Patches"
-img_size = (64, 64)
-num_classes = 9
-batch_size = 4
+from PIL import ImageOps
+from keras.utils import load_img
+from IPython.display import Image
 
-def get_paths():
-    input_img_paths = sorted(
-        [
-            os.path.join(input_dir, fname)
-            for fname in os.listdir(input_dir)
-            if fname.endswith(".png")
-        ]
-    )
-    target_img_paths = sorted(
-        [
-            os.path.join(target_dir, fname)
-            for fname in os.listdir(target_dir)
-            if fname.endswith(".png")
-        ]
-    )
+import get_dataset as ds
+import model as u_net
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
-    from IPython.display import Image, display
-    from keras.utils import load_img
-    from PIL import ImageOps
-    print("Number of training samples: ", len(input_img_paths))
-    print("Number of targets samples: ", len(input_img_paths))
-    # Display input image #7
-    display(Image(filename=input_img_paths[9]))
-
-    # Display auto-contrast version of corresponding target (per-pixel categories)
-    img = ImageOps.autocontrast(load_img(target_img_paths[9]))
-    display(img)
-
-    return (input_img_paths, target_img_paths)
-
-def parse_with_opencv(image_path, target_path):
-    image = cv2.imread(image_path.decode('UTF-8'))
-    target = cv2.imread(target_path.decode('UTF-8'))
-    print(image)
-    print(target)
-    return (image, target)
-
-def get_dataset(
-    batch_size,
-    img_size,
-    input_img_paths,
-    target_img_paths,
-    max_dataset_len=None,
-):
-    """Returns a TF Dataset."""
-
-    def load_img_masks(input_img_path, target_img_path):
-        
-        input_img = tf_io.read_file(input_img_path)
-        input_img = tf_io.decode_png(input_img, channels=3)
-        #input_img = tf_image.convert_image_dtype(input_img, "float32")
-
-        target_img = tf_io.read_file(target_img_path)
-        target_img = tf_io.decode_png(target_img, channels=1)
-        target_img = tf_image.convert_image_dtype(target_img, "uint8")
-        
-        return (input_img, target_img)
-
-    # For faster debugging, limit the size of data
-    if max_dataset_len:
-        input_img_paths = input_img_paths[:max_dataset_len]
-        target_img_paths = target_img_paths[:max_dataset_len]
-        
-    #dataset = tf_data.Dataset.from_tensor_slices((input_img_paths, target_img_paths))
-    #dataset = dataset.map(load_img_masks, num_parallel_calls=tf_data.AUTOTUNE)
-    #lambdaA = lambda x: tf.numpy_function(parse_with_opencv, [x], Tout=tf.uint8)
-    #lambdaB = lambda x: load_img_masks(input_img_paths)
-    #targets = lambdaA(target_img_paths) 
-    #images = landbdaB(input_img_paths) 
-    #dataset = tf.data.Dataset.from_tensor_slices(input_img_paths,target_img_paths).map(
-    #    (images, targets),
-    #    num_parallel_calls=tf_data.AUTOTUNE 
-    #)
-    
-    ## HALF WORKS
-    #dataset = tf.data.Dataset.from_tensor_slices((input_img_paths, target_img_paths)).map(
-    #    lambda x,y: tf.numpy_function(parse_with_opencv, (x,y), Tout=tf.uint8), num_parallel_calls=tf_data.AUTOTUNE 
-    #)
-
-    dataset = tf_data.Dataset.from_tensor_slices((input_img_paths, target_img_paths))
-    dataset = dataset.map(
-        load_img_masks,
-        num_parallel_calls=tf_data.AUTOTUNE 
-    )
-    return dataset.batch(batch_size)
-
-
-def get_model(img_size, num_classes):
-    inputs = keras.Input(shape=img_size + (3,))
-
-    ### [First half of the network: downsampling inputs] ###
-
-    # Entry block
-    x = layers.Conv2D(32, 3, strides=2, padding="same")(inputs)
-    x = layers.BatchNormalization()(x)
-    x = layers.Activation("relu")(x)
-
-    previous_block_activation = x  # Set aside residual
-
-    # Blocks 1, 2, 3 are identical apart from the feature depth.
-    for filters in [64, 128, 256]:
-        x = layers.Activation("relu")(x)
-        x = layers.SeparableConv2D(filters, 3, padding="same")(x)
-        x = layers.BatchNormalization()(x)
-
-        x = layers.Activation("relu")(x)
-        x = layers.SeparableConv2D(filters, 3, padding="same")(x)
-        x = layers.BatchNormalization()(x)
-
-        x = layers.MaxPooling2D(3, strides=2, padding="same")(x)
-
-        # Project residual
-        residual = layers.Conv2D(filters, 1, strides=2, padding="same")(
-            previous_block_activation
-        )
-        x = layers.add([x, residual])  # Add back residual
-        previous_block_activation = x  # Set aside next residual
-
-    ### [Second half of the network: upsampling inputs] ###
-
-    for filters in [256, 128, 64, 32]:
-        x = layers.Activation("relu")(x)
-        x = layers.Conv2DTranspose(filters, 3, padding="same")(x)
-        x = layers.BatchNormalization()(x)
-
-        x = layers.Activation("relu")(x)
-        x = layers.Conv2DTranspose(filters, 3, padding="same")(x)
-        x = layers.BatchNormalization()(x)
-
-        x = layers.UpSampling2D(2)(x)
-
-        # Project residual
-        residual = layers.UpSampling2D(2)(previous_block_activation)
-        residual = layers.Conv2D(filters, 1, padding="same")(residual)
-        x = layers.add([x, residual])  # Add back residual
-        previous_block_activation = x  # Set aside next residual
-
-    # Add a per-pixel classification layer
-    outputs = layers.Conv2D(num_classes, 3, activation="softmax", padding="same")(x)
-
-    # Define the model
-    model = keras.Model(inputs, outputs)
-    return model
-
-def train_test_split(input_img_paths, target_img_paths):# Split our img paths into a training and a validation set
-    val_samples = 50
-    random.Random(1337).shuffle(input_img_paths)
-    random.Random(1337).shuffle(target_img_paths)
-    train_input_img_paths = input_img_paths[:-val_samples] # Training samples
-    train_target_img_paths = target_img_paths[:-val_samples] # Training targets
-    val_input_img_paths = input_img_paths[-val_samples:] # Validation samples
-    val_target_img_paths = target_img_paths[-val_samples:] # Validation targets
-
-    # Instantiate dataset for each split
-    # Limit input files in `max_dataset_len` for faster epoch training time.
-    # Remove the `max_dataset_len` arg when running with full dataset.
-    train_dataset = get_dataset(
-        batch_size,
-        img_size,
-        train_input_img_paths,
-        train_target_img_paths,
-        max_dataset_len=1000,
-    )
-    print(train_input_img_paths)
-    valid_dataset = get_dataset(
-        batch_size, img_size, val_input_img_paths, val_target_img_paths
-    )
-    return (train_dataset, valid_dataset)
-
-
-## GENRATES TRAINING/TESTING DATA
-training_paths, target_paths = get_paths()
-train_dataset, valid_dataset = train_test_split(training_paths, target_paths)
-
-
-
-## BUILD MODEL
-model = get_model(img_size, num_classes)
-model.summary()
-# Configure the model for training.
-# We use the "sparse" version of categorical_crossentropy
-# because our target data is integers.
-model.compile(
-    optimizer=keras.optimizers.Adam(1e-4), loss="sparse_categorical_crossentropy"
-)
-
-callbacks = [
-    keras.callbacks.ModelCheckpoint("oxford_segmentation.keras", save_best_only=True)
-]
-
-
-
-
-## RUNS THE MODEL
-# Train the model, doing validation at the end of each epoch.
-epochs = 50
-model.fit(
-    train_dataset,
-    epochs=epochs,
-    validation_data=valid_dataset,
-    callbacks=callbacks,
-    verbose=2,
-)
-
-
-## VALIDATES FOR EVERYTHING
-# Generate predictions for all images in the validation set
-val_dataset = get_dataset(
-    batch_size, img_size, val_input_img_paths, val_target_img_paths
-)
-val_preds = model.predict(val_dataset)
+model_configs = {
+    '1':[0.8, 
+        ['20170717'],  # 80% training, 20% testing for base model
+        ['20160609', '20180624', '20181010', '20191027']], # No-retraining and optimisation with individual 60% training for each tile and testing on 40%
+    '2':[0.6, 
+        ['20170717','20190627'], # 60% training, 40% testing for base model
+        ['20160609', '20180624', '20181010']], # No-retraining and optimisation with individual 60% training for each tile and testing on 40%
+    '3':[0.6, 
+        ['20160609', '20170717', '20180624', '20181010','20190627'],# 60% training, 40% testing for base model
+        ['20191211','20191027','20190627','20190227', '20190123',# No-retraining and optimisation with individual 60% training for each tile and testing on 40%
+          '20181224','20181010','20180624','20171126','20171116',
+          '20170717','20170525','20170125','20161226','20161129',
+          '20161116','20160609','20160420','20160210','20151125']],
+    '4':[0.6,
+        ['20191211','20191027','20190123','20181224','20171126','20171116','20170125','20161226','20160609','20160420'],# 60% training, 40% testing for base model 
+        ['20190627','20190227','20181010','20180624','20170717','20170525','20161129','20161116','20160210','20151125']]# No-retraining and optimisation with individual 60% training for each tile and testing on 40%
+}
 
 
 def display_mask(i):
@@ -233,18 +33,59 @@ def display_mask(i):
     mask = np.argmax(val_preds[i], axis=-1)
     mask = np.expand_dims(mask, axis=-1)
     img = ImageOps.autocontrast(keras.utils.array_to_img(mask))
-    display(img)
+    img.show(title='Result %d'%i)
+
+## GENRATES TRAINING/TESTING DATA AND GETS PATHS
+training_paths, target_paths = ds.get_paths()
+train_dataset, valid_dataset, val_input_img_paths, val_target_img_paths = ds.train_test_split(training_paths, target_paths)
 
 
-# Display results for validation image #10
-i = 10
+## BUILD MODEL
+model = u_net.get_untrained_model()
 
-# Display input image
-display(Image(filename=val_input_img_paths[i]))
+## RUNS THE MODEL
+# Train the model, doing validation at the end of each epoch.
+model = u_net.train_model(train_dataset, valid_dataset, model)
 
-# Display ground-truth target mask
-img = ImageOps.autocontrast(load_img(val_target_img_paths[i]))
-display(img)
+## VALIDATES FOR EVERYTHING
+val_preds = u_net.validate_model(val_input_img_paths, val_target_img_paths, model)
 
-# Display mask predicted by our model
-display_mask(i)  # Note that the model only sees inputs at 150x150.
+from sklearn.metrics import precision_recall_fscore_support as score
+
+
+average_f1=[]
+average_precision=[]
+average_recall=[]
+average_accuracy=[]
+
+for i in range(0, len(val_preds)):
+    predicted = np.argmax(val_preds[i], axis=-1).flatten()
+    actual = load_img(val_target_img_paths[i]).flatten()
+
+    average_f1 += f1_score(actual, predicted, lables=[0,1,2,3,4,5,5,6,7,8], average=None)
+    average_precision += precision_score(actual, predicted, lables=[0,1,2,3,4,5,5,6,7,8], average=None)
+    average_recall += recall_score(actual, predicted, lables=[0,1,2,3,4,5,5,6,7,8], average=None)
+    average_accuracy += accuracy_score(actual, predicted, lables=[0,1,2,3,4,5,5,6,7,8], average=None)
+average_f1=average_f1 / len(val_preds)
+average_precision=average_precision / len(val_preds)
+average_recall=average_recall/ len(val_preds)
+print('accuracy: {}'.format(average_accuracy))
+print('precision: {}'.format(average_precision))
+print('recall: {}'.format(average_recall))
+print('fscore: {}'.format(average_fscore))
+
+
+## DISPLAYS AND SAVES RESULTS
+# Display results for 5 validation images 
+for i in range(0,5):
+    # Display input image
+    img = load_img(val_input_img_paths[i])
+    img.show(title='Input image %d'%i)
+    
+
+    # Display ground-truth target mask
+    img = ImageOps.autocontrast(load_img(val_target_img_paths[i]))
+    img.show(title='Ground-truth %d'%i)
+
+    # Display mask predicted by our model
+    display_mask(i)  # Note that the model only sees inputs at 150x150.

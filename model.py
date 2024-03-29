@@ -1,54 +1,131 @@
 import keras
 from keras import layers
-import tensorflow_datasets as tfds
 import matplotlib.pyplot as plt
 
+import tensorflow as tf
+import get_dataset as ds
+
 ## PARAMS
-CLASSES = 9
-INPUT_SHAPE = (64,64,3)
-EPOCHS = 100
-BATCH_SIZE = 4
+img_size = (64, 64)
+num_classes = 9
+batch_size = 4
+epochs = 100
 
-def getTrainableModel(base_weights, is_base_trainable):
-    # ENCODER - feature extraction
-    base_model = keras.applications.ResNet50(
-        weights = base_weights, # Use existing weights
-        input_shape=INPUT_SHAPE, # Input shape with 3 bands
-        include_top=False # Using a custom decoder instead,
-    )
-    base_model.trainable = is_base_trainable
-   
-        
-    ## ENCODER
-    inputs = keras.Input(shape=INPUT_SHAPE)
-    x = base_model(inputs, training=is_base_trainable)
-    
-    ## DECODER - classification
-    # Convert upsamples to a higher level
-    x = keras.layers.Conv2D(1,(3,3), activation='relu', padding='same')(x)
-    x = keras.layers.UpSampling2D(size=(2,2))(x)
-    x = keras.layers.Conv2D(1,(3,3), activation='relu', padding='same')(x)
-    x = keras.layers.UpSampling2D(size=(2,2))(x)
-    x = keras.layers.Conv2D(1,(3,3), activation='relu', padding='same')(x)
-    x = keras.layers.UpSampling2D(size=(2,2))(x)
-    x = keras.layers.Conv2D(1,(3,3), activation='relu', padding='same')(x)
-    x = keras.layers.UpSampling2D(size=(2,2))(x)
-    x = keras.layers.Conv2D(1,(3,3), activation='relu', padding='same')(x)
-    x = keras.layers.UpSampling2D(size=(2,2))(x)
-    # A Dense classifier with a 9 classes
-    outputs = keras.layers.Softmax(axis=-1)(x)
+def get_untrained_model():
+    inputs = keras.Input(shape=img_size + (3,))
+
+    ### [First half of the network: downsampling inputs] ###
+
+    # Entry block
+    x = layers.Conv2D(32, 3, strides=2, padding="same")(inputs)
+    x = layers.BatchNormalization()(x)
+    x = layers.Activation("relu")(x)
+
+    previous_block_activation = x  # Set aside residual
+
+    # Blocks 1, 2, 3 are identical apart from the feature depth.
+    for filters in [64, 128, 256]:
+        x = layers.Activation("relu")(x)
+        x = layers.SeparableConv2D(filters, 3, padding="same")(x)
+        x = layers.BatchNormalization()(x)
+
+        x = layers.Activation("relu")(x)
+        x = layers.SeparableConv2D(filters, 3, padding="same")(x)
+        x = layers.BatchNormalization()(x)
+
+        x = layers.MaxPooling2D(3, strides=2, padding="same")(x)
+
+        # Project residual
+        residual = layers.Conv2D(filters, 1, strides=2, padding="same")(
+            previous_block_activation
+        )
+        x = layers.add([x, residual])  # Add back residual
+        previous_block_activation = x  # Set aside next residual
+
+    ### [Second half of the network: upsampling inputs] ###
+
+    for filters in [256, 128, 64, 32]:
+        x = layers.Activation("relu")(x)
+        x = layers.Conv2DTranspose(filters, 3, padding="same")(x)
+        x = layers.BatchNormalization()(x)
+
+        x = layers.Activation("relu")(x)
+        x = layers.Conv2DTranspose(filters, 3, padding="same")(x)
+        x = layers.BatchNormalization()(x)
+
+        x = layers.UpSampling2D(2)(x)
+
+        # Project residual
+        residual = layers.UpSampling2D(2)(previous_block_activation)
+        residual = layers.Conv2D(filters, 1, padding="same")(residual)
+        x = layers.add([x, residual])  # Add back residual
+        previous_block_activation = x  # Set aside next residual
+
+    # Add a per-pixel classification layer
+    outputs = layers.Conv2D(num_classes, 3, activation="softmax", padding="same")(x)
+
+    # Define the model
     model = keras.Model(inputs, outputs)
+    show_trainable=True
+    return model
 
-    compile_model(model)
+def get_trained_model(model_file):
+    model = keras.saving.load_model(model_file)
+
+    for layer in model.layers[:30]:
+        layer.trainable = False
     model.summary(show_trainable=True)
     return model
 
 
-def compile_model(model):
-    model.compile(loss='categorical_crossentropy',
-                  optimizer='adam',
-                  metrics=['accuracy'])
-
-def base_model_train(train_inputs, target_outputs , model):
-    model.fit(train_inputs, target_outputs, epochs=EPOCHS, batch_size=BATCH_SIZE)
+def train_base_model(train_dataset, valid_dataset, model, model_name):
+    # Configure the model for training.
+    # We use the "sparse" version of categorical_crossentropy
+    # because our target data is integers.
+    model.compile(
+        optimizer=keras.optimizers.Adam(1e-4),
+        loss="sparse_categorical_crossentropy",
+        metrics=['accuracy']
+    )
+    # Saves the weights for use later
+    callbacks = [
+        keras.callbacks.ModelCheckpoint("model_%d.keras"%model_name, save_best_only=True, save_weights_only=True)
+    ]
+    history = model.fit(
+        train_dataset,
+        epochs=epochs,
+        validation_data=valid_dataset,
+        callbacks=callbacks,
+        verbose=2,
+    )
     return model
+
+def transfer_learn_model(train_dataset, valid_dataset, model, model_name, tile_name):
+    # Configure the model for training.
+    # We use the "sparse" version of categorical_crossentropy
+    # because our target data is integers.
+    model.compile(
+        optimizer=keras.optimizers.Adam(1e-4),
+        loss="sparse_categorical_crossentropy",
+        metrics=['accuracy']
+    )
+    # Saves the weights for use later for a specific tile
+    callbacks = [
+        keras.callbacks.ModelCheckpoint("model_%d_%s.keras"%(model_name, tile_name), save_best_only=True)
+    ]
+    model.fit(
+        train_dataset,
+        epochs=epochs,
+        validation_data=valid_dataset,
+        callbacks=callbacks,
+        verbose=2,
+    )
+    return model
+
+def validate_model(val_input_img_paths, val_target_img_paths, model):
+    # Generate predictions for all images in the validation set
+    val_dataset = ds.get_dataset(
+        batch_size, img_size, val_input_img_paths, val_target_img_paths
+    )
+    val_preds = model.predict(val_dataset)
+    return val_preds
