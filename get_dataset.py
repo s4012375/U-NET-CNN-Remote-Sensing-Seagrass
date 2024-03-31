@@ -4,30 +4,43 @@ from tensorflow import image as tf_image
 from tensorflow import io as tf_io
 import random
 
-input_dir = ".\\TCI\\20170717\\Patches"
-target_dir = ".\\ground-truth\\20170717\\Patches"
+input_dir = ".\\TCI\\"
+target_dir = ".\\ground-truth\\"
 batch_size = 4
 img_size = (64,64)
-def get_paths():
-    input_img_paths = sorted(
-        [
-            os.path.join(input_dir, fname)
-            for fname in os.listdir(input_dir)
-            if fname.endswith(".png")
-        ]
-    )
-    target_img_paths = sorted(
-        [
-            os.path.join(target_dir, fname)
-            for fname in os.listdir(target_dir)
-            if fname.endswith(".png")
-        ]
-    )
 
-    print("Number of training samples: ", len(input_img_paths))
-    print("Number of targets samples: ", len(input_img_paths))
 
-    return (input_img_paths, target_img_paths)
+
+def get_paths(tiles):
+    #input_img_paths = []
+    #target_img_paths = []
+    target_num = 0
+    img_num = 0
+    seperate_img_paths = {}
+    seperate_target_paths = {}
+    for tile in tiles:
+        seperate_img_paths[tile] = sorted(
+            [
+                os.path.join("%s%s\\Patches"%(input_dir, tile), fname)
+                for fname in os.listdir("%s%s\\Patches"%(input_dir, tile))
+                if fname.endswith(".png")
+            ]
+        )
+        img_num += len(seperate_img_paths[tile])
+    for tile in tiles:
+        seperate_target_paths[tile] = sorted(
+            [
+                os.path.join("%s%s\\Patches"%(target_dir, tile), fname)
+                for fname in os.listdir("%s%s\\Patches"%(target_dir, tile))
+                if fname.endswith(".png")
+            ]
+        )
+        target_num += len(seperate_target_paths[tile])
+
+    print("Number of training samples: ", img_num)
+    print("Number of targets samples: ", target_num)
+
+    return (seperate_img_paths, seperate_target_paths)
 
 
 def get_dataset(
@@ -40,7 +53,6 @@ def get_dataset(
     """Returns a TF Dataset."""
 
     def load_img_masks(input_img_path, target_img_path):
-        
         input_img = tf_io.read_file(input_img_path)
         input_img = tf_io.decode_png(input_img, channels=3)
         #input_img = tf_image.convert_image_dtype(input_img, "float32")
@@ -64,26 +76,45 @@ def get_dataset(
     return dataset.batch(batch_size)
 
 
-def train_test_split(input_img_paths, target_img_paths):# Split our img paths into a training and a validation set
-    val_samples = 50
-    random.Random(1337).shuffle(input_img_paths)
-    random.Random(1337).shuffle(target_img_paths)
-    train_input_img_paths = input_img_paths[:-val_samples] # Training samples
-    train_target_img_paths = target_img_paths[:-val_samples] # Training targets
-    val_input_img_paths = input_img_paths[-val_samples:] # Validation samples
-    val_target_img_paths = target_img_paths[-val_samples:] # Validation targets
-
-    # Instantiate dataset for each split
-    # Limit input files in `max_dataset_len` for faster epoch training time.
-    # Remove the `max_dataset_len` arg when running with full dataset.
-    train_dataset = get_dataset(
-        batch_size,
-        img_size,
-        train_input_img_paths,
-        train_target_img_paths,
-        max_dataset_len=1000,
+def train_test_split(input_img_paths, target_img_paths, test_divide):# Split our img paths into a training and a validation set
+    # Maps used for testing model on each tile
+    val_input_img_paths_by_tile = {}
+    val_target_img_paths_by_tile = {}
+    # Complete set of image/mask paths for training and validation
+    all_train_input_img_paths = []
+    all_train_target_img_paths = []
+    all_val_input_img_paths = []
+    all_val_target_img_paths = []
+    # Gets all paths for the tile
+    for tile in input_img_paths.keys():
+        random.Random(1337).shuffle(input_img_paths[tile])
+        random.Random(1337).shuffle(target_img_paths[tile])
+        # Adds them to the tilewise paths training and testing
+        tile_train_input_img_paths = input_img_paths[tile][:-test_divide] # Training samples
+        tile_train_target_img_paths = target_img_paths[tile][:-test_divide] # Training targets
+        tile_val_input_img_paths = input_img_paths[tile][-test_divide:] # Validation samples
+        tile_val_target_img_paths = target_img_paths[tile][-test_divide:] # Validation targets
+        # Adds them to the overall tile paths
+        all_train_input_img_paths += tile_train_input_img_paths
+        all_train_target_img_paths += tile_train_target_img_paths
+        all_val_input_img_paths += tile_val_input_img_paths
+        all_val_target_img_paths += tile_val_target_img_paths
+        # Keeps a tile-wise record of the input and targets for validation 
+        val_input_img_paths_by_tile[tile] = tile_val_input_img_paths
+        val_target_img_paths_by_tile[tile] = tile_val_target_img_paths
+    # Gets the full training and testing paths
+    full_train_dataset = get_dataset(
+            batch_size,
+            img_size,
+            all_train_input_img_paths,
+            all_train_target_img_paths,
+            max_dataset_len=1000,
     )
-    valid_dataset = get_dataset(
-        batch_size, img_size, val_input_img_paths, val_target_img_paths
+    full_valid_dataset = get_dataset(
+        batch_size, img_size, all_val_input_img_paths, all_val_target_img_paths
     )
-    return (train_dataset, valid_dataset, val_input_img_paths, val_target_img_paths)
+    print("Training with %d training inputs from tiles %s"%(len(all_train_input_img_paths), list(val_input_img_paths_by_tile.keys())))
+    print("Training with %d target masks from tiles %s"%(len(all_train_target_img_paths), list(val_target_img_paths_by_tile.keys())))
+    print("Validating and testing with %d inputs from tiles %s"%(len(all_val_input_img_paths), list(val_input_img_paths_by_tile.keys())))
+    print("Validating and testing with %d target masks from tiles %s"%(len(all_val_target_img_paths), list(val_target_img_paths_by_tile.keys())))
+    return (full_train_dataset, full_valid_dataset, val_input_img_paths_by_tile, val_target_img_paths_by_tile)

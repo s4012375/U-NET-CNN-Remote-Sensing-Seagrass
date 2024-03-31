@@ -8,7 +8,7 @@ import get_dataset as ds
 ## PARAMS
 img_size = (64, 64)
 num_classes = 9
-batch_size = 4
+batch_size = 20
 epochs = 100
 
 def get_untrained_model():
@@ -89,7 +89,7 @@ def train_base_model(train_dataset, valid_dataset, model, model_name):
     )
     # Saves the weights for use later
     callbacks = [
-        keras.callbacks.ModelCheckpoint("model_%d.keras"%model_name, save_best_only=True, save_weights_only=True)
+        keras.callbacks.ModelCheckpoint("model_%s.keras"%model_name, save_best_only=True)
     ]
     history = model.fit(
         train_dataset,
@@ -98,7 +98,7 @@ def train_base_model(train_dataset, valid_dataset, model, model_name):
         callbacks=callbacks,
         verbose=2,
     )
-    return model
+    print(model.get_weights())
 
 def transfer_learn_model(train_dataset, valid_dataset, model, model_name, tile_name):
     # Configure the model for training.
@@ -120,7 +120,6 @@ def transfer_learn_model(train_dataset, valid_dataset, model, model_name, tile_n
         callbacks=callbacks,
         verbose=2,
     )
-    return model
 
 def validate_model(val_input_img_paths, val_target_img_paths, model):
     # Generate predictions for all images in the validation set
