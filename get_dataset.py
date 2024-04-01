@@ -9,8 +9,6 @@ target_dir = ".\\ground-truth\\"
 batch_size = 4
 img_size = (64,64)
 
-
-
 def get_paths(tiles):
     #input_img_paths = []
     #target_img_paths = []
@@ -107,8 +105,7 @@ def train_test_split(input_img_paths, target_img_paths, test_divide):# Split our
             batch_size,
             img_size,
             all_train_input_img_paths,
-            all_train_target_img_paths,
-            max_dataset_len=1000,
+            all_train_target_img_paths
     )
     full_valid_dataset = get_dataset(
         batch_size, img_size, all_val_input_img_paths, all_val_target_img_paths
@@ -118,3 +115,19 @@ def train_test_split(input_img_paths, target_img_paths, test_divide):# Split our
     print("Validating and testing with %d inputs from tiles %s"%(len(all_val_input_img_paths), list(val_input_img_paths_by_tile.keys())))
     print("Validating and testing with %d target masks from tiles %s"%(len(all_val_target_img_paths), list(val_target_img_paths_by_tile.keys())))
     return (full_train_dataset, full_valid_dataset, val_input_img_paths_by_tile, val_target_img_paths_by_tile)
+
+def get_control_group_images(input_img_paths, target_img_paths):# Split our img paths into a training and a validation set
+    # Gets all paths for the tile
+    random.Random(1337).shuffle(input_img_paths)
+    random.Random(1337).shuffle(target_img_paths)
+    print(input_img_paths)
+    # Gets the full training and testing paths
+    full_control_group_dataset = get_dataset(
+            batch_size,
+            img_size,
+            input_img_paths,
+            target_img_paths
+    )
+    print("Control group has full dataset with %d input samples"%(len(input_img_paths)))
+    print("Control group has full masking dataset with %d target masks"%(len(target_img_paths)))
+    return (full_control_group_dataset, target_img_paths)

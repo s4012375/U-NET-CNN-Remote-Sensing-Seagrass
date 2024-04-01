@@ -8,8 +8,9 @@ import get_dataset as ds
 ## PARAMS
 img_size = (64, 64)
 num_classes = 9
-batch_size = 20
-epochs = 100
+batch_size = 32
+base_epochs = 300
+transfer_epochs = 100
 
 def get_untrained_model():
     inputs = keras.Input(shape=img_size + (3,))
@@ -78,11 +79,11 @@ def get_trained_model(model_file):
     return model
 
 
-def train_base_model(train_dataset, valid_dataset, model, model_name):
+def train_base_model(train_dataset, valid_dataset, base_model, model_name):
     # Configure the model for training.
     # We use the "sparse" version of categorical_crossentropy
     # because our target data is integers.
-    model.compile(
+    base_model.compile(
         optimizer=keras.optimizers.Adam(1e-4),
         loss="sparse_categorical_crossentropy",
         metrics=['accuracy']
@@ -91,40 +92,44 @@ def train_base_model(train_dataset, valid_dataset, model, model_name):
     callbacks = [
         keras.callbacks.ModelCheckpoint("model_%s.keras"%model_name, save_best_only=True)
     ]
-    history = model.fit(
+    history = base_model.fit(
         train_dataset,
-        epochs=epochs,
+        base_epochs=epochs,
         validation_data=valid_dataset,
         callbacks=callbacks,
         verbose=2,
     )
-    print(model.get_weights())
+    return base_model
 
-def transfer_learn_model(train_dataset, valid_dataset, model, model_name, tile_name):
+def transfer_learn_model(train_dataset, valid_dataset, tile_model, model_name, tile_name):
     # Configure the model for training.
     # We use the "sparse" version of categorical_crossentropy
     # because our target data is integers.
-    model.compile(
+    tile_model.compile(
         optimizer=keras.optimizers.Adam(1e-4),
         loss="sparse_categorical_crossentropy",
         metrics=['accuracy']
     )
     # Saves the weights for use later for a specific tile
     callbacks = [
-        keras.callbacks.ModelCheckpoint("model_%d_%s.keras"%(model_name, tile_name), save_best_only=True)
+        keras.callbacks.ModelCheckpoint("model_%s_%s.keras"%(model_name, tile_name), save_best_only=True)
     ]
-    model.fit(
+    tile_model.fit(
         train_dataset,
-        epochs=epochs,
+        transfer_epochs=epochs,
         validation_data=valid_dataset,
         callbacks=callbacks,
         verbose=2,
     )
+    return tile_model
 
 def validate_model(val_input_img_paths, val_target_img_paths, model):
     # Generate predictions for all images in the validation set
     val_dataset = ds.get_dataset(
         batch_size, img_size, val_input_img_paths, val_target_img_paths
     )
-    val_preds = model.predict(val_dataset)
+    val_preds = model.predict(val_dataset, verbose=0)
+    print(val_preds)
+    print(val_preds.shape)
     return val_preds
+
