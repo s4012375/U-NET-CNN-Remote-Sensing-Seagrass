@@ -129,7 +129,5 @@ def validate_model(val_input_img_paths, val_target_img_paths, model):
         batch_size, img_size, val_input_img_paths, val_target_img_paths
     )
     val_preds = model.predict(val_dataset, verbose=0)
-    print(val_preds)
-    print(val_preds.shape)
     return val_preds
 
