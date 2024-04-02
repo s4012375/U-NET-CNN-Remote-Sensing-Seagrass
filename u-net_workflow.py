@@ -31,12 +31,12 @@ MODEL = '2' # THIS IS THE MODEL TO BE RUN
 
 # Displays the model success metrics and saves them to a file
 def evaluate_tile(val_preds, val_target_img_paths, average_precision, tile, stage):
-    average_f1=np.array([0,0,0,0,0,0,0,0,0])
-    count_f1 = np.array([0,0,0,0,0,0,0,0,0])
-    average_precision=np.array([0,0,0,0,0,0,0,0,0])
-    count_precision = np.array([0,0,0,0,0,0,0,0,0])
-    average_recall = np.array([0,0,0,0,0,0,0,0,0])
-    count_recall = np.array([0,0,0,0,0,0,0,0,0])
+    average_f1=np.array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0])
+    count_all_f1 = np.array([0,0,0,0,0,0,0,0,0])
+    average_precision=np.array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0])
+    count_all_precision = np.array([0,0,0,0,0,0,0,0,0])
+    average_recall = np.array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0])
+    count_all_recall = np.array([0,0,0,0,0,0,0,0,0])
     average_accuracy=0
     
     # For each image in the returned dataset evaluate its performance
@@ -71,12 +71,16 @@ def evaluate_tile(val_preds, val_target_img_paths, average_precision, tile, stag
         img = ImageOps.autocontrast(keras.utils.array_to_img(mask))
         img_name = val_target_img_paths[i].split('\\')[-1]
         img.save('.\\RESULTS\\model %s\\%s\\%s\\%s'%(MODEL, stage, tile, img_name))
-    
-    average_f1 = average_f1 / count_f1
-    average_precision = average_precision / count_precision
-    average_recall = average_recall / count_recall
+    for i in range(0, len(classes)):
+        if (count_f1[i] != 0):
+            average_f1[i] = average_f1[i] / count_f1[i]
+    for i in range(0, len(classes)):
+        if (count_precision[i] != 0):
+            average_precision[i] = average_precision[i] / count_precision[i]
+    for i in range(0, len(classes)):
+        if (count_recall[i] != 0):
+            average_recall[i] = average_recall[i] / count_recall[i]
     average_accuracy = average_accuracy / len(val_preds)
-    print("Tile f1: ", average_f1)
     print('{} accuracy: {}'.format(tile, average_accuracy))
     # Writes tile-wise log of results
     with open('.\\RESULTS\\model %s\\%s\\%s\\evaluation.txt'%(MODEL,stage,tile), 'w') as f:
@@ -124,11 +128,16 @@ def evaluate_model(image_paths, target_paths, model,stage):
         count_all_recall += cnt_recall # Counts how many valid f1s there are across tiles
         count_all_precision += cnt_precision # Counts how many valid f1s there are across tiles
     
-    average_f1=average_f1 / count_all_f1
-    average_precision=average_precision / count_all_precision
-    average_recall=average_recall / count_all_recall
+    for i in range(0, len(classes)):
+        if (count_f1[i] != 0):
+            average_f1[i] = average_f1[i] / count_all_f1[i]
+    for i in range(0, len(classes)):
+        if (count_precision[i] != 0):
+            average_precision[i] = average_precision[i] / count_all_precision[i]
+    for i in range(0, len(classes)):
+        if (count_recall[i] != 0):
+            average_recall[i] = average_recall[i] / count_all_recall[i]
     average_accuracy=average_accuracy / len(image_paths)
-    print("Model f1: ",average_f1)
     print('Overall accuracy: {}'.format(average_accuracy))
     
     # Writes overall model log of results
