@@ -9,7 +9,7 @@ import get_dataset as ds
 img_size = (64, 64)
 num_classes = 9
 batch_size = 32
-base_epochs = 300
+base_epochs = 100
 transfer_epochs = 100
 
 def get_untrained_model():
@@ -94,7 +94,7 @@ def train_base_model(train_dataset, valid_dataset, base_model, model_name):
     ]
     history = base_model.fit(
         train_dataset,
-        base_epochs=epochs,
+        epochs=base_epochs,
         validation_data=valid_dataset,
         callbacks=callbacks,
         verbose=2,
@@ -116,7 +116,7 @@ def transfer_learn_model(train_dataset, valid_dataset, tile_model, model_name, t
     ]
     tile_model.fit(
         train_dataset,
-        transfer_epochs=epochs,
+        epochs=transfer_epochs,
         validation_data=valid_dataset,
         callbacks=callbacks,
         verbose=2,
