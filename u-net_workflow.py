@@ -4,22 +4,24 @@ import numpy as np
 from PIL import ImageOps
 from keras.utils import load_img
 from IPython.display import Image
+import os
 
 import get_dataset as ds
 import model as u_net
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
+patches_per_tile = 178
 model_configs = {
-    '1':[50, 
+    '1':[36, 
         ['20170717'],  # 80% training, 20% testing for base model
         ['20160609', '20180624', '20181010', '20191027']], # No-retraining and optimisation with individual 60% training for each tile and testing on 40%
-    '2':[100, 
+    '2':[71, 
         ['20170717','20190627', '20181010'], # 60% training, 40% testing for base model
         ['20160609', '20180624']], # No-retraining and optimisation with individual 60% training for each tile and testing on 40%
-    '3':[100, 
+    '3':[71, 
         ['20171126', '20171116', '20170525', '20170125', '20161226', '20161129', '20161116', '20160420', '20160210', '20151125'],# 60% training, 40% testing for base model
         ['20191211', '20191027', '20190227', '20190123', '20181224']], # No-retraining and optimisation with individual 60% training for each tile and testing on 40%
-    '4':[100,
+    '4':[71,
         ['20191211', '20191027', '20190123', '20181224', '20181010', '20180624', '20171126', '20171116', '20170125', '20161226', '20160609', '20160420'], # 60% training, 40% testing for base model 
         ['20190627', '20190227', '20170717', '20170525', '20160210', '20151125', '20161129', '20161116']] # No-retraining and optimisation with individual 60% training for each tile and testing on 40%
 }
@@ -31,20 +33,23 @@ MODEL = '2' # THIS IS THE MODEL TO BE RUN
 
 # Displays the model success metrics and saves them to a file
 def evaluate_tile(val_preds, val_target_img_paths, average_precision, tile, stage):
+    os.system('rm -rf .\\RESULTS\\model %s\\%s\\%s\\*'%(MODEL, stage, tile)) # Empties the result directory so the results start from scratch
     average_f1=np.array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0])
-    count_all_f1 = np.array([0,0,0,0,0,0,0,0,0])
+    count_f1 = np.array([0,0,0,0,0,0,0,0,0])
     average_precision=np.array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0])
-    count_all_precision = np.array([0,0,0,0,0,0,0,0,0])
+    count_precision = np.array([0,0,0,0,0,0,0,0,0])
     average_recall = np.array([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0])
-    count_all_recall = np.array([0,0,0,0,0,0,0,0,0])
+    count_recall = np.array([0,0,0,0,0,0,0,0,0])
     average_accuracy=0
     
     # For each image in the returned dataset evaluate its performance
-    for i in range(0, len(val_preds)):
-        predicted_mask = np.argmax(val_preds[i], axis=-1)
+    for j in range(0, len(val_preds)):
+        current_path = val_target_img_paths[j]
+        img_name = current_path.split('\\')[-1]
+        predicted_mask = np.argmax(val_preds[j], axis=-1)
         predicted_mask = np.expand_dims(predicted_mask, axis=-1)
         predicted_array = predicted_mask.flatten()
-        actual = np.moveaxis(np.asarray(load_img(val_target_img_paths[i])), 2, 0)[0:1].flatten()
+        actual = np.moveaxis(np.asarray(load_img(current_path)), 2, 0)[0:1].flatten()
         # Calculates f1 stats for this tile
         f1 = f1_score(actual, predicted_array, labels=[0,1,2,3,4,5,6,7,8], average=None, zero_division=np.nan)
         for i in range(0, len(classes)):
@@ -66,10 +71,9 @@ def evaluate_tile(val_preds, val_target_img_paths, average_precision, tile, stag
         average_accuracy += accuracy_score(actual, predicted_array)
 
         # Saves result to a file
-        mask = np.argmax(val_preds[i], axis=-1)
+        mask = np.argmax(val_preds[j], axis=-1)
         mask = np.expand_dims(mask, axis=-1)
         img = ImageOps.autocontrast(keras.utils.array_to_img(mask))
-        img_name = val_target_img_paths[i].split('\\')[-1]
         img.save('.\\RESULTS\\model %s\\%s\\%s\\%s'%(MODEL, stage, tile, img_name))
     for i in range(0, len(classes)):
         if (count_f1[i] != 0):
@@ -129,14 +133,20 @@ def evaluate_model(image_paths, target_paths, model,stage):
         count_all_precision += cnt_precision # Counts how many valid f1s there are across tiles
     
     for i in range(0, len(classes)):
-        if (count_f1[i] != 0):
+        if (count_all_f1[i] != 0):
             average_f1[i] = average_f1[i] / count_all_f1[i]
+        else:
+            average_f1[i] = np.nan
     for i in range(0, len(classes)):
-        if (count_precision[i] != 0):
+        if (count_all_precision[i] != 0):
             average_precision[i] = average_precision[i] / count_all_precision[i]
+        else:
+            average_precision[i] = np.nan
     for i in range(0, len(classes)):
-        if (count_recall[i] != 0):
+        if (count_all_recall[i] != 0):
             average_recall[i] = average_recall[i] / count_all_recall[i]
+        else:
+            average_recall[i] = np.nan
     average_accuracy=average_accuracy / len(image_paths)
     print('Overall accuracy: {}'.format(average_accuracy))
     
@@ -151,11 +161,13 @@ def evaluate_model(image_paths, target_paths, model,stage):
 def run_model_workflow():
 
     ## GENRATES TRAINING/TESTING DATA AND GETS PATHS
-    training_paths, target_paths = ds.get_paths(model_configs[MODEL][1])
-    train_dataset, valid_dataset, val_input_img_paths_by_tile, val_target_img_paths_by_tile = ds.train_test_split(training_paths, target_paths, model_configs[MODEL][0])
+    image_paths, target_paths = ds.get_paths(model_configs[MODEL][1])
+    train_dataset, valid_dataset, val_input_img_paths_by_tile, val_target_img_paths_by_tile = ds.train_test_split(image_paths, target_paths, model_configs[MODEL][0])
+    print(val_input_img_paths_by_tile)
     
     ## BUILD MODEL FROM SCRATCH
     base_model = u_net.get_untrained_model()
+    
     ## RUNS THE MODEL
     # Train the model doing validation at the end of each epoch.
     base_model = u_net.train_base_model(train_dataset, valid_dataset, base_model, MODEL)
@@ -170,7 +182,7 @@ def run_model_workflow():
     ## TRAIN FOR EACH TILE SPECIFICALLY
     for tile in model_configs[MODEL][2]:
         tile_model = u_net.get_trained_model('model_' + MODEL + '.keras')
-        train_dataset, valid_dataset, val_input_img_paths_for_tile, val_target_img_paths_for_tile = ds.train_test_split({tile: training_paths[tile]}, {tile: target_paths[tile]}, 100)
+        train_dataset, valid_dataset, val_input_img_paths_for_tile, val_target_img_paths_for_tile = ds.train_test_split({tile: training_paths[tile]}, {tile: target_paths[tile]}, 71)
         tile_model = u_net.transfer_learn_model(train_dataset, valid_dataset, tile_model, MODEL, tile)
         evaluate_model(val_input_img_paths_for_tile, val_target_img_paths_for_tile, tile_model, 'Transfer_learned')
         tile_model = None # Clears the model at the end of running

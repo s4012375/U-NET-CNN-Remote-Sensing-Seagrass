@@ -9,7 +9,7 @@ import get_dataset as ds
 img_size = (64, 64)
 num_classes = 9
 batch_size = 32
-base_epochs = 100
+base_epochs = 600
 transfer_epochs = 100
 
 def get_untrained_model():
