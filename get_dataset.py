@@ -4,14 +4,14 @@ from tensorflow import image as tf_image
 from tensorflow import io as tf_io
 import random
 
+import keras
+
 input_dir = ".\\TCI\\"
 target_dir = ".\\ground-truth\\"
 batch_size = 4
 img_size = (64,64)
 
 def get_paths(tiles):
-    #input_img_paths = []
-    #target_img_paths = []
     target_num = 0
     img_num = 0
     seperate_img_paths = {}
@@ -53,7 +53,9 @@ def get_dataset(
     def load_img_masks(input_img_path, target_img_path):
         input_img = tf_io.read_file(input_img_path)
         input_img = tf_io.decode_png(input_img, channels=3)
-        #input_img = tf_image.convert_image_dtype(input_img, "float32")
+        input_img = tf_image.convert_image_dtype(input_img, "float32")
+        input_img = keras.applications.resnet.preprocess_input(input_img)
+        
 
         target_img = tf_io.read_file(target_img_path)
         target_img = tf_io.decode_png(target_img, channels=1)

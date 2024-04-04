@@ -18,16 +18,16 @@ area_name = ['Fenham', 'Budle', 'Beadnell', 'Embleton']
 for image_name in images[0:20]:
     area_i = 0
     # Reads the raster file for the ground-truth
-    with rasterio.open('.\\ground-truth\\' + image_name + '\\' + image_name + '.tif', 'r') as ds:
+    with rasterio.open('.\\ground-truth\\' + image_name + '\\' + image_name + '.tif', 'r', nodata=1.0) as ds:
         # Reads all Region of Interest geometries in the file
         with fiona.open(".\\datasets\\shapefiles\\RoI\\RoI.shp", "r") as shapefile:
             # Loops through each polygon region
             geoms = [feature["geometry"] for feature in shapefile]
             for geom in geoms:
                 # Extracts the RoI from the image
-                area = rasterio.mask.mask(ds, [geom], crop=True)
+                area = rasterio.mask.mask(ds, [geom], crop=True, nodata=1.0)
                 img_arr = np.moveaxis(area[0], 0, 2)
-                #img_arr = img_arr-1 # starts classes at 0
+                img_arr -= 1 # starts classes at 0
                 patches = patchify.patchify(img_arr, (64,64,1), step=64)
 
                 # Save the patches
@@ -35,7 +35,6 @@ for image_name in images[0:20]:
                     for y in range(patches.shape[1]):
                        for z in range(patches.shape[2]):
                            single_patch = patches[x, y, z, :, :, :]
-                           single_patch -= 1 # Sets the patches to start class labels from 0 not 1
                            # Save each patch as a separate GeoTIFF file
                            tiff.imwrite('./ground-truth/' + image_name + '/Patches/' + area_name[area_i] + f'_image_{x}_{y}.tif', single_patch)
                            
@@ -46,19 +45,19 @@ for image_name in images[0:20]:
                 print('Written ground-truth patches for ' + area_name[area_i])
                 area_i = area_i + 1
 
-shape_tci = [(576,768,3),(448,192,3),(256,1280,3),(192,896,3)]
+size_tci = [(576,768,3),(448,192,3),(256,1280,3),(192,896,3)]
 # Loops through each image that needs patchifying
 for image_name in images[0:20]:
     area_i = 0
     # Reads the raster file for the ground-truth
-    with rasterio.open('.\\TCI\\' + image_name + '\\' + image_name + '.tif', 'r') as ds:
+    with rasterio.open('.\\TCI\\' + image_name + '\\' + image_name + '.tif', 'r', nodata = 0.0) as ds:
         # Reads all Region of Interest geometries in the file          
         with fiona.open(".\\datasets\\shapefiles\\RoI\\RoI.shp", "r") as shapefile:
             # Loops through each polygon region
             geoms = [feature["geometry"] for feature in shapefile]
             for geom in geoms:
                 # Extracts the RoI from the image
-                area = rasterio.mask.mask(ds, [geom], crop=True)
+                area = rasterio.mask.mask(ds, [geom], crop=True, nodata=0.0)
                 img_arr = np.moveaxis(area[0], 0, 2)
                 patches = patchify.patchify(img_arr, (64,64,3), step=64)
                 
@@ -76,7 +75,7 @@ for image_name in images[0:20]:
                 area_i = area_i + 1
 
 ## To Reconstruct
-                #reconstructed_image = patchify.unpatchify(patches, shape_tci[area_i])
+                #reconstructed_image = patchify.unpatchify(patches, size_tci[area_i])
                 #tiff.imwrite('./TCI/' + image_name + '/ORIGINAL/'+ area_name[area_i] + '_original.tif', reconstructed_image)
                 #print('Patched and reconstructed ' + area_name[area_i])
                 #area_i = area_i + 1

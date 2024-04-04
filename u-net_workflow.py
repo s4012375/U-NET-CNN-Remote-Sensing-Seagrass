@@ -163,25 +163,24 @@ def run_model_workflow():
     ## GENRATES TRAINING/TESTING DATA AND GETS PATHS
     image_paths, target_paths = ds.get_paths(model_configs[MODEL][1])
     train_dataset, valid_dataset, val_input_img_paths_by_tile, val_target_img_paths_by_tile = ds.train_test_split(image_paths, target_paths, model_configs[MODEL][0])
-    print(val_input_img_paths_by_tile)
     
     ## BUILD MODEL FROM SCRATCH
-    base_model = u_net.get_untrained_model()
+    base_model = u_net.get_imagenet_resnet_model()
     
     ## RUNS THE MODEL
     # Train the model doing validation at the end of each epoch.
     base_model = u_net.train_base_model(train_dataset, valid_dataset, base_model, MODEL)
     evaluate_model(val_input_img_paths_by_tile, val_target_img_paths_by_tile, base_model, 'Training')
-    
-    base_model = u_net.get_trained_model('model_' + MODEL + '.keras')
-    ## GETS CONTROL IMAGES
+
+    ## RUNS CONTROL GROUP
+    base_model = u_net.get_full_trained_resnet_model('full_model_' + MODEL + '.weights.h5')
     training_paths, target_paths = ds.get_paths(model_configs[MODEL][2])
     ## EVALUATES THE MODEL WITHOUT RETRAININGON NEW TILES
     evaluate_model(training_paths, target_paths, base_model, 'Control')
 
     ## TRAIN FOR EACH TILE SPECIFICALLY
     for tile in model_configs[MODEL][2]:
-        tile_model = u_net.get_trained_model('model_' + MODEL + '.keras')
+        tile_model = u_net.get_trained_resnet_model('resnet50_model_' + MODEL + '.weights.h5')
         train_dataset, valid_dataset, val_input_img_paths_for_tile, val_target_img_paths_for_tile = ds.train_test_split({tile: training_paths[tile]}, {tile: target_paths[tile]}, 71)
         tile_model = u_net.transfer_learn_model(train_dataset, valid_dataset, tile_model, MODEL, tile)
         evaluate_model(val_input_img_paths_for_tile, val_target_img_paths_for_tile, tile_model, 'Transfer_learned')
