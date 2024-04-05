@@ -173,7 +173,7 @@ def run_model_workflow():
     evaluate_model(val_input_img_paths_by_tile, val_target_img_paths_by_tile, base_model, 'Training')
 
     ## RUNS CONTROL GROUP
-    base_model = u_net.get_full_trained_resnet_model('full_model_' + MODEL + '.weights.h5')
+    base_model = u_net.get_full_trained_resnet_model('full_model_' + MODEL + '.keras')
     training_paths, target_paths = ds.get_paths(model_configs[MODEL][2])
     ## EVALUATES THE MODEL WITHOUT RETRAININGON NEW TILES
     evaluate_model(training_paths, target_paths, base_model, 'Control')

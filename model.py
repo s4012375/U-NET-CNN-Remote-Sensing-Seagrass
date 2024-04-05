@@ -116,17 +116,19 @@ def get_imagenet_resnet_model():
     return model
 
 def get_trained_resnet_model(model_file):
-    ## [First half of the model is resnet encoder] ##
+     
+ ## [First half of the model is resnet encoder] ##
     resnet = keras.applications.ResNet50(
         include_top=False,
         input_shape=(64,64,3),
+        weights = 'imagenet'
     )
     resnet.load_weights(model_file)
     resnet.trainable = False
     
     inputs = keras.Input(shape=(64,64,3))
     x = resnet(inputs)
-
+    
     ## [Middle of the model is bridging] ##
     # Bridge Block 1
     bridge_residual1 = resnet.get_layer('conv2_block1_out').output # out shape (16,16,256)
@@ -149,7 +151,7 @@ def get_trained_resnet_model(model_file):
     bridge_residual3 = layers.BatchNormalization()(bridge_residual3)
     bridge_residual3 = layers.Conv2D(1024,3,padding="same")(bridge_residual3)
 
-    # Bridge Block 4 and Inputs
+    # Bridge Block 4
     
     bridge_residual4 = x # out shape (2,2,2048)
     bridge_residual4 = rcu(bridge_residual4, 2048)
@@ -159,17 +161,20 @@ def get_trained_resnet_model(model_file):
     previous_block_activation = bridge_residual4
 
     
-    x = previous_block_activation
+    ### ResNet50 encoder ###
+    previous_block_activation = x
+    #x = previous_block_activation
     
     ### [Second half of the network: upsampling inputs] ###
     for (filters, residual) in [(1024, bridge_residual3), (512, bridge_residual2), (256, bridge_residual1)]:
+    #for filters in [1024, 512, 256]:
         x = layers.Activation("relu")(previous_block_activation)
         x = crp(x, filters*2, 5)
         x = rcu(x, filters*2)
         x = layers.BatchNormalization()(x)
         x = layers.Conv2D(filters, 3, padding="same")(x)
         x = layers.UpSampling2D(2)(x)
-        x = layers.add([x, residual])
+        #x = layers.add([x, residual])
 
         previous_block_activation = x  # Set aside next residual
         
@@ -225,8 +230,8 @@ def train_base_model(train_dataset, valid_dataset, base_model, model_name):
 
 def transfer_learn_model(train_dataset, valid_dataset, tile_model, model_name, tile_name):
     checkpoint = tf.keras.callbacks.ModelCheckpoint(
-        'full_resnet_checkpoint_model_%s.keras'%(model_name),
-        monitor='val_accuracy',
+        'full_resnet_checkpoint_model_%s_%s.keras'%(model_name, tile_name),
+        monitor='accuracy',
         verbose=0,
         save_best_only=True,
     )
@@ -245,7 +250,7 @@ def transfer_learn_model(train_dataset, valid_dataset, tile_model, model_name, t
         callbacks=checkpoint,
         verbose=2
     )
-    tile_model.get_layer('resnet50').save_weights("resnet50_model_%s.weights.h5"%model_name)
+    tile_model.get_layer('resnet50').save_weights("resnet50_model_%s_%s.weights.h5"%(model_name,tile_name))
     return tile_model
 
 def validate_model(val_input_img_paths, val_target_img_paths, model):
