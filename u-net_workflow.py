@@ -12,23 +12,23 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 
 patches_per_tile = 178
 model_configs = {
-    '1':[36, 
+    '1':[24, 
         ['20170717'],  # 80% training, 20% testing for base model
         ['20160609', '20180624', '20181010', '20191027']], # No-retraining and optimisation with individual 60% training for each tile and testing on 40%
-    '2':[71, 
+    '2':[47, 
         ['20170717','20190627', '20181010'], # 60% training, 40% testing for base model
         ['20160609', '20180624']], # No-retraining and optimisation with individual 60% training for each tile and testing on 40%
-    '3':[71, 
+    '3':[47, 
         ['20171126', '20171116', '20170525', '20170125', '20161226', '20161129', '20161116', '20160420', '20160210', '20151125'],# 60% training, 40% testing for base model
         ['20191211', '20191027', '20190227', '20190123', '20181224']], # No-retraining and optimisation with individual 60% training for each tile and testing on 40%
-    '4':[71,
+    '4':[47,
         ['20191211', '20191027', '20190123', '20181224', '20181010', '20180624', '20171126', '20171116', '20170125', '20161226', '20160609', '20160420'], # 60% training, 40% testing for base model 
         ['20190627', '20190227', '20170717', '20170525', '20160210', '20151125', '20161129', '20161116']] # No-retraining and optimisation with individual 60% training for each tile and testing on 40%
 }
 
 classes = ['Land', 'Sand', 'Seaweed','Rock', 'Mussel', 'Salt marsh', 'Water', 'Seagrass', 'Cloud']
 
-MODEL = '2' # THIS IS THE MODEL TO BE RUN
+MODEL = '4' # THIS IS THE MODEL TO BE RUN
 
 
 # Displays the model success metrics and saves them to a file
@@ -180,8 +180,8 @@ def run_model_workflow():
 
     ## TRAIN FOR EACH TILE SPECIFICALLY
     for tile in model_configs[MODEL][2]:
-        tile_model = u_net.get_trained_resnet_model('resnet50_model_' + MODEL + '.weights.h5')
-        train_dataset, valid_dataset, val_input_img_paths_for_tile, val_target_img_paths_for_tile = ds.train_test_split({tile: training_paths[tile]}, {tile: target_paths[tile]}, 71)
+        tile_model = u_net.get_trained_resnet_model('full_model_' + MODEL + '.keras')
+        train_dataset, valid_dataset, val_input_img_paths_for_tile, val_target_img_paths_for_tile = ds.train_test_split({tile: training_paths[tile]}, {tile: target_paths[tile]}, 47)
         tile_model = u_net.transfer_learn_model(train_dataset, valid_dataset, tile_model, MODEL, tile)
         evaluate_model(val_input_img_paths_for_tile, val_target_img_paths_for_tile, tile_model, 'Transfer_learned')
         tile_model = None # Clears the model at the end of running

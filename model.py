@@ -8,9 +8,9 @@ import get_dataset as ds
 ## PARAMS
 img_size = (64, 64)
 num_classes = 9
-batch_size = 32
-base_epochs = 50
-transfer_epochs = 10
+batch_size = 20
+base_epochs = 100
+transfer_epochs = 50
 
 
 # Residual Convolutional Block
@@ -47,6 +47,7 @@ def get_imagenet_resnet_model():
         input_shape=(64,64,3),
         weights = 'imagenet'
     )
+    resnet.trainable = False
     inputs = keras.Input(shape=(64,64,3))
     x = resnet(inputs)
     
@@ -191,6 +192,10 @@ def get_trained_resnet_model(model_file):
 
     # Define the model
     model = keras.Model(inputs, outputs)
+    
+    # Sets all layers prior to the last 20 to trainable
+    for l in model.layers[:-25]:
+        l.trainable = False
     model.summary(show_trainable=True)
     return model
 
@@ -225,7 +230,6 @@ def train_base_model(train_dataset, valid_dataset, base_model, model_name):
     )
     # Saves the weights for use later
     base_model.save("full_model_%s.keras"%model_name)
-    base_model.get_layer('resnet50').save_weights("resnet50_model_%s.weights.h5"%model_name)
     return base_model
 
 def transfer_learn_model(train_dataset, valid_dataset, tile_model, model_name, tile_name):
@@ -250,7 +254,7 @@ def transfer_learn_model(train_dataset, valid_dataset, tile_model, model_name, t
         callbacks=checkpoint,
         verbose=2
     )
-    tile_model.get_layer('resnet50').save_weights("resnet50_model_%s_%s.weights.h5"%(model_name,tile_name))
+    tile_model.save("full_model_%s_%s.keras"%(model_name,tile_name))
     return tile_model
 
 def validate_model(val_input_img_paths, val_target_img_paths, model):

@@ -5,7 +5,6 @@ import patchify
 import tifffile as tiff
 import fiona
 from PIL import Image
-import matplotlib.image
 
 images = ['20191211','20191027','20190627','20190227', '20190123',
           '20181224','20181010','20180624','20171126','20171116',
@@ -59,6 +58,7 @@ for image_name in images[0:20]:
                 # Extracts the RoI from the image
                 area = rasterio.mask.mask(ds, [geom], crop=True, nodata=0.0)
                 img_arr = np.moveaxis(area[0], 0, 2)
+                img_arr = img_arr * (255 / np.max(img_arr))
                 patches = patchify.patchify(img_arr, (64,64,3), step=64)
                 
                 ## Save each patch as a separate GeoTIFF file
@@ -68,10 +68,10 @@ for image_name in images[0:20]:
                             single_patch = patches[x, y, z, :, :, :]
                             tiff.imwrite('./TCI/' + image_name + '/Patches/' + area_name[area_i] + f'_image_{x}_{y}.tif', single_patch)
                             
-                            im=Image.fromarray((single_patch * 255).astype(np.uint8)) 
+                            im=Image.fromarray(single_patch.astype(np.uint8))
                             im.save('./TCI/%s/Patches/%s_image_%d_%d.png'%(image_name,area_name[area_i],x,y))
                             
-                            print('Written TCI patches for ' + area_name[area_i])
+                print('Written TCI patches for ' + area_name[area_i])
                 area_i = area_i + 1
 
 ## To Reconstruct
