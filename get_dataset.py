@@ -102,6 +102,8 @@ def train_test_split(input_img_paths, target_img_paths, test_divide):# Split our
         # Keeps a tile-wise record of the input and targets for validation 
         val_input_img_paths_by_tile[tile] = tile_val_input_img_paths
         val_target_img_paths_by_tile[tile] = tile_val_target_img_paths
+    print("Train inputs: ",all_train_input_img_paths)
+    print("Train targets: ", all_train_target_img_paths)
     # Gets the full training and testing paths
     full_train_dataset = get_dataset(
             batch_size,
@@ -109,6 +111,8 @@ def train_test_split(input_img_paths, target_img_paths, test_divide):# Split our
             all_train_input_img_paths,
             all_train_target_img_paths
     )
+    print("Valid inputs: ", all_val_input_img_paths)
+    print("Valid targets: ", all_val_target_img_paths)
     full_valid_dataset = get_dataset(
         batch_size, img_size, all_val_input_img_paths, all_val_target_img_paths
     )

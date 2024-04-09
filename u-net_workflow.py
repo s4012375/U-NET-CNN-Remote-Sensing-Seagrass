@@ -10,7 +10,7 @@ import get_dataset as ds
 import model as u_net
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
-patches_per_tile = 178
+patches_per_tile = 119
 model_configs = {
     '1':[24, 
         ['20170717'],  # 80% training, 20% testing for base model
@@ -73,7 +73,7 @@ def evaluate_tile(val_preds, val_target_img_paths, average_precision, tile, stag
         # Saves result to a file
         mask = np.argmax(val_preds[j], axis=-1)
         mask = np.expand_dims(mask, axis=-1)
-        img = ImageOps.autocontrast(keras.utils.array_to_img(mask))
+        img = keras.utils.array_to_img(mask)
         img.save('.\\RESULTS\\model %s\\%s\\%s\\%s'%(MODEL, stage, tile, img_name))
     for i in range(0, len(classes)):
         if (count_f1[i] != 0):
@@ -122,6 +122,7 @@ def evaluate_model(image_paths, target_paths, model,stage):
     for tile in image_paths.keys():
         # Make predictions of segments and average_precision using the model on different subset of the tiles used in training
         val_preds = u_net.validate_model(image_paths[tile], target_paths[tile], model)
+        print(val_preds)
         # Evaluates the model
         f1, recall, precision, accuracy, cnt_f1, cnt_recall, cnt_precision = evaluate_tile(val_preds, target_paths[tile], MODEL, tile, stage)
         average_f1 += f1
@@ -170,19 +171,23 @@ def run_model_workflow():
     ## RUNS THE MODEL
     # Train the model doing validation at the end of each epoch.
     base_model = u_net.train_base_model(train_dataset, valid_dataset, base_model, MODEL)
-    evaluate_model(val_input_img_paths_by_tile, val_target_img_paths_by_tile, base_model, 'Training')
+
+##    ## USE IF BASE MODEL STOPPED PREMATURELY
+##    base_model = u_net.get_full_trained_resnet_model('full_resnet_checkpoint_model_' + MODEL + '.keras')
+##    training_paths, target_paths = ds.get_paths(model_configs[MODEL][1])
+##    evaluate_model(training_paths, target_paths, base_model, 'Training')
 
     ## RUNS CONTROL GROUP
-    base_model = u_net.get_full_trained_resnet_model('full_model_' + MODEL + '.keras')
+    base_model = u_net.get_full_trained_resnet_model('full_resnet_checkpoint_model_' + MODEL + '.keras')
     training_paths, target_paths = ds.get_paths(model_configs[MODEL][2])
     ## EVALUATES THE MODEL WITHOUT RETRAININGON NEW TILES
     evaluate_model(training_paths, target_paths, base_model, 'Control')
 
     ## TRAIN FOR EACH TILE SPECIFICALLY
-    for tile in model_configs[MODEL][2]:
-        tile_model = u_net.get_trained_resnet_model('full_model_' + MODEL + '.keras')
+    for tile in model_configs[MODEL][2][2:3]:
+        tile_model = u_net.get_trained_resnet_model('full_resnet_checkpoint_model_' + MODEL + '.keras')
         train_dataset, valid_dataset, val_input_img_paths_for_tile, val_target_img_paths_for_tile = ds.train_test_split({tile: training_paths[tile]}, {tile: target_paths[tile]}, 47)
-        tile_model = u_net.transfer_learn_model(train_dataset, valid_dataset, tile_model, MODEL, tile)
+        #tile_model = u_net.transfer_learn_model(train_dataset, valid_dataset, tile_model, MODEL, tile)
         evaluate_model(val_input_img_paths_for_tile, val_target_img_paths_for_tile, tile_model, 'Transfer_learned')
         tile_model = None # Clears the model at the end of running
 
