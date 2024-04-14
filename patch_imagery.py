@@ -17,7 +17,7 @@ area_name = ['Fenham', 'Budle', 'Beadnell', 'Embleton']
 for image_name in images[0:20]:
     area_i = 0
     # Reads the raster file for the ground-truth
-    with rasterio.open('.\\ground-truth\\' + image_name + '\\' + image_name + '.tif', 'r', nodata=1.0) as ds:
+    with rasterio.open('.\\ground-truth\\' + image_name + '\\' + image_name + '_GT.tif', 'r', nodata=1.0) as ds:
         # Reads all Region of Interest geometries in the file
         with fiona.open(".\\datasets\\shapefiles\\RoI\\RoI.shp", "r") as shapefile:
             # Loops through each polygon region

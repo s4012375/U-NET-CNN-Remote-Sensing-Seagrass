@@ -1,17 +1,17 @@
 import keras
 from keras import layers
 import matplotlib.pyplot as plt
-
+import json
 import tensorflow as tf
-import get_dataset as ds
 
 ## PARAMS
 img_size = (64, 64)
-num_classes = 9
-get_dataset_batch_size = 4
-batch_size = 20
+num_classes = 6
+get_dataset_batch_size = 32
 base_epochs = 100
-transfer_epochs = 50
+transfer_epochs = 20
+
+import get_dataset as ds
 
 
 # Residual Convolutional Block
@@ -121,8 +121,8 @@ def get_trained_resnet_model(model_file):
      
     model = keras.models.load_model(model_file)
     
-    # Sets all layers prior to the last 20 to trainable
-    for l in model.layers[:-25]:
+    # Sets all layers prior to the last 100 to trainable
+    for l in model.layers[:-100]:
         l.trainable = False
         
     model.summary(show_trainable=True)
@@ -130,6 +130,7 @@ def get_trained_resnet_model(model_file):
 
 def get_full_trained_resnet_model(model_file):
     model = keras.models.load_model(model_file)
+    model.get_layer('resnet50').trainable=False
     
     model.summary(show_trainable=True)
     return model
@@ -150,13 +151,21 @@ def train_base_model(train_dataset, valid_dataset, base_model, model_name):
         loss="sparse_categorical_crossentropy",
         metrics=['accuracy']
     )
-    base_model.fit(
+    history = base_model.fit(
         train_dataset,
         epochs=base_epochs,
         validation_data=valid_dataset,
         callbacks=checkpoint,
         verbose=2
     )
+    results = ''
+    for i in range (0, transfer_epochs):
+        results += '(%d, %1.4f)'%(i+1, history.history['accuracy'][i])
+    for i in range (0, transfer_epochs):
+        results += '(%d, %1.4f)'%(i+1, history.history['val_accuracy'][i])
+    with open('..\\model_training_stats_base.txt', 'w') as f:
+        json.dump(results, f)
+    tile_model.save("full_model_%s_%s.keras"%(model_name,tile_name))
     # Saves the weights for use later
     base_model.save("full_model_%s.keras"%model_name)
     return base_model
@@ -176,13 +185,20 @@ def transfer_learn_model(train_dataset, valid_dataset, tile_model, model_name, t
         loss="sparse_categorical_crossentropy",
         metrics=['accuracy']
     )
-    tile_model.fit(
+    history = tile_model.fit(
         train_dataset,
         epochs=transfer_epochs,
         validation_data=valid_dataset,
         callbacks=checkpoint,
         verbose=2
     )
+    results = ''
+    for i in range (0, transfer_epochs):
+        results += '(%d, %1.4f)'%(i+1, history.history['accuracy'][i])
+    for i in range (0, transfer_epochs):
+        results += '(%d, %1.4f)'%(i+1, history.history['val_accuracy'][i])
+    with open('..\\model_training_stats_transfer.txt', 'w') as f:
+        json.dump(results, f)
     tile_model.save("full_model_%s_%s.keras"%(model_name,tile_name))
     return tile_model
 
