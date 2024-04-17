@@ -24,14 +24,14 @@ model_configs = {
     '4':[47,
         ['20191211', '20191027', '20190123', '20181224', '20181010', '20180624', '20171126', '20171116', '20170125', '20161226', '20160609', '20160420'], # 60% training, 40% testing for base model 
         ['20190627', '20190227', '20170717', '20170525', '20160210', '20151125', '20161129', '20161116']],
-    '5':[47,
+    '5':[20,
         ['20191211', '20191027', '20190227', '20190123', '20181224', '20181010', '20180624', '20171126', '20171116', '20170125', '20161226', '20160609', '20160420','20151125', '20161129', '20161116'], # 60% training, 40% testing for base model 
         ['20190627', '20170717', '20170525', '20160210']]# No-retraining and optimisation with individual 60% training for each tile and testing on 40%
 }
 
 classes = ['Land', 'Sand', 'Seaweed','Salt marsh', 'Water', 'Seagrass']
 
-MODEL = '4' # THIS IS THE MODEL TO BE RUN
+MODEL = '5' # THIS IS THE MODEL TO BE RUN
 
 
 # Displays the model success metrics and saves them to a file
@@ -164,33 +164,38 @@ def evaluate_model(image_paths, target_paths, model,stage):
 def run_model_workflow():
 
     ## GENRATES TRAINING/TESTING DATA AND GETS PATHS
-##    image_paths, target_paths = ds.get_paths(model_configs[MODEL][1])
-##    train_dataset, valid_dataset, val_input_img_paths_by_tile, val_target_img_paths_by_tile = ds.train_test_split(image_paths, target_paths, model_configs[MODEL][0])
-##    
-##    ## BUILD MODEL FROM SCRATCH
-##    base_model = u_net.get_imagenet_resnet_model()
-##    
-##    ## RUNS THE MODEL
-##    # Train the model doing validation at the end of each epoch.
-##    base_model = u_net.train_base_model(train_dataset, valid_dataset, base_model, MODEL)
+    image_paths, target_paths = ds.get_paths(model_configs[MODEL][1])
+    train_dataset, valid_dataset, val_input_img_paths_by_tile, val_target_img_paths_by_tile = ds.train_test_split(image_paths, target_paths, model_configs[MODEL][0])
+    
+    ## BUILD MODEL FROM SCRATCH
+    base_model = u_net.get_imagenet_resnet_model()
+    
+    ## RUNS THE MODEL
+    # Train the model doing validation at the end of each epoch.
+    base_model = u_net.train_base_model(train_dataset, valid_dataset, base_model, MODEL)
+    evaluate_model(image_paths, target_paths, base_model, 'Training')
 
-##    ## USE IF BASE MODEL STOPPED PREMATURELY
+    ##  --- USE IF BASE MODEL STOPPED PREMATURELY AND YOU WANT TO CONTINUE TRAINING ---
 ##    image_paths, target_paths = ds.get_paths(model_configs[MODEL][1])
-##    #train_dataset, valid_dataset, val_input_img_paths_by_tile, val_target_img_paths_by_tile = ds.train_test_split(image_paths, target_paths, model_configs[MODEL][0])# Use these two is continuing to train
-##    base_model = u_net.get_full_trained_resnet_model('full_resnet_checkpoint_model_' + MODEL + '.keras')
-##    #base_model = u_net.train_base_model(train_dataset, valid_dataset, base_model, MODEL) # Use these two is continuing to train
+##    train_dataset, valid_dataset, val_input_img_paths_by_tile, val_target_img_paths_by_tile = ds.train_test_split(image_paths, target_paths, model_configs[MODEL][0])# Use these two is continuing to train
+##    base_model = u_net.train_base_model(train_dataset, valid_dataset, base_model, MODEL) # Use these two is continuing to train
+    
+    ##  --- TESTS OJ OWN TRAINING TILES IF THE MODEL WAS STOPPED EARLY ---
+##    image_paths, target_paths = ds.get_paths(model_configs[MODEL][1])
+##    base_model = u_net.get_full_trained_resnet_model('full_resnet_checkpoint_model_' + MODEL + '.keras')  
 ##    evaluate_model(image_paths, target_paths, base_model, 'Training')
+##
 
     ## RUNS CONTROL GROUP
-##    base_model = u_net.get_full_trained_resnet_model('full_resnet_checkpoint_model_' + MODEL + '.keras')
+    base_model = u_net.get_full_trained_resnet_model('full_resnet_checkpoint_model_' + MODEL + '.keras')
     training_paths, target_paths = ds.get_paths(model_configs[MODEL][2])
     ## EVALUATES THE MODEL WITHOUT RETRAININGON NEW TILES
-##    evaluate_model(training_paths, target_paths, base_model, 'Control')
+    evaluate_model(training_paths, target_paths, base_model, 'Control')
 
     ## TRAIN FOR EACH TILE SPECIFICALLY
-    for tile in model_configs[MODEL][2][2:3]:
+    for tile in model_configs[MODEL][2]:
         tile_model = u_net.get_trained_resnet_model('full_resnet_checkpoint_model_' + MODEL + '.keras')
-        train_dataset, valid_dataset, val_input_img_paths_for_tile, val_target_img_paths_for_tile = ds.train_test_split({tile: training_paths[tile]}, {tile: target_paths[tile]}, 30)
+        train_dataset, valid_dataset, val_input_img_paths_for_tile, val_target_img_paths_for_tile = ds.train_test_split({tile: training_paths[tile]}, {tile: target_paths[tile]}, 47)
         tile_model = u_net.transfer_learn_model(train_dataset, valid_dataset, tile_model, MODEL, tile)
         evaluate_model(val_input_img_paths_for_tile, val_target_img_paths_for_tile, tile_model, 'Transfer_learned')
         tile_model = None # Clears the model at the end of running

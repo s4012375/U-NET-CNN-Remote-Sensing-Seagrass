@@ -9,7 +9,7 @@ img_size = (64, 64)
 num_classes = 6
 get_dataset_batch_size = 32
 base_epochs = 100
-transfer_epochs = 20
+transfer_epochs = 100
 
 import get_dataset as ds
 
@@ -56,13 +56,11 @@ def get_imagenet_resnet_model():
     # Bridge Block 1
     bridge_residual1 = resnet.get_layer('conv2_block1_out').output # out shape (16,16,256)
     bridge_residual1 = rcu(bridge_residual1, 256)
-    bridge_residual1 = rcu(bridge_residual1, 256)
     bridge_residual1 = layers.BatchNormalization()(bridge_residual1)
     bridge_residual1 = layers.Conv2D(256,3,padding="same")(bridge_residual1)
 
     # Bridge Block 2
     bridge_residual2 = resnet.get_layer('conv3_block2_out').output # out shape (8,8,512)
-    bridge_residual2 = rcu(bridge_residual2, 512)
     bridge_residual2 = rcu(bridge_residual2, 512)
     bridge_residual2 = layers.BatchNormalization()(bridge_residual2)
     bridge_residual2 = layers.Conv2D(512,3,padding="same")(bridge_residual2)
@@ -70,14 +68,12 @@ def get_imagenet_resnet_model():
     # Bridge Block 3
     bridge_residual3 = resnet.get_layer('conv4_block3_out').output # out shape (4,4,1024)
     bridge_residual3 = rcu(bridge_residual3, 1024)
-    bridge_residual3 = rcu(bridge_residual3, 1024)
     bridge_residual3 = layers.BatchNormalization()(bridge_residual3)
     bridge_residual3 = layers.Conv2D(1024,3,padding="same")(bridge_residual3)
 
     # Bridge Block 4
     
     bridge_residual4 = x # out shape (2,2,2048)
-    bridge_residual4 = rcu(bridge_residual4, 2048)
     bridge_residual4 = rcu(bridge_residual4, 2048)
     bridge_residual4 = layers.BatchNormalization()(bridge_residual4)
     bridge_residual4 = layers.Conv2D(2048,3,padding="same")(bridge_residual4)
@@ -90,7 +86,6 @@ def get_imagenet_resnet_model():
     
     ### [Second half of the network: upsampling inputs] ###
     for (filters, residual) in [(1024, bridge_residual3), (512, bridge_residual2), (256, bridge_residual1)]:
-    #for filters in [1024, 512, 256]:
         x = layers.Activation("relu")(previous_block_activation)
         x = crp(x, filters*2, 5)
         x = rcu(x, filters*2)
@@ -104,7 +99,6 @@ def get_imagenet_resnet_model():
     # Final layer
     x = layers.Activation("relu")(previous_block_activation)
     x = crp(x, 256, 1)
-    x = rcu(x, 256)
     x = layers.UpSampling2D(2)(x)
     x = rcu(x, 256)
     x = layers.UpSampling2D(2)(x)
@@ -122,7 +116,7 @@ def get_trained_resnet_model(model_file):
     model = keras.models.load_model(model_file)
     
     # Sets all layers prior to the last 100 to trainable
-    for l in model.layers[:-100]:
+    for l in model.layers[:-4]:
         l.trainable = False
         
     model.summary(show_trainable=True)
@@ -181,7 +175,7 @@ def transfer_learn_model(train_dataset, valid_dataset, tile_model, model_name, t
     # We use the "sparse" version of categorical_crossentropy
     # because our target data is integers.
     tile_model.compile(
-        optimizer=keras.optimizers.Adam(1e-4),
+        optimizer=keras.optimizers.Adam(1e-6),
         loss="sparse_categorical_crossentropy",
         metrics=['accuracy']
     )
@@ -197,7 +191,7 @@ def transfer_learn_model(train_dataset, valid_dataset, tile_model, model_name, t
         results += '(%d, %1.4f)'%(i+1, history.history['accuracy'][i])
     for i in range (0, transfer_epochs):
         results += '(%d, %1.4f)'%(i+1, history.history['val_accuracy'][i])
-    with open('..\\model_training_stats_transfer.txt', 'w') as f:
+    with open('..\\model_training_stats_transfer_%s.txt'%tile_name, 'w') as f:
         json.dump(results, f)
     tile_model.save("full_model_%s_%s.keras"%(model_name,tile_name))
     return tile_model

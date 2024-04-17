@@ -121,8 +121,9 @@ def train_test_split(input_img_paths, target_img_paths, test_divide):# Split our
 
 def get_control_group_images(input_img_paths, target_img_paths):# Split our img paths into a training and a validation set
     # Gets all paths for the tile
-    random.Random(1337).shuffle(input_img_paths)
-    random.Random(1337).shuffle(target_img_paths)
+    seed = random.randint(1,3000)
+    random.Random(seed).shuffle(input_img_paths)
+    random.Random(seed).shuffle(target_img_paths)
     print(input_img_paths)
     # Gets the full training and testing paths
     full_control_group_dataset = get_dataset(

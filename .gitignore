@@ -55,3 +55,6 @@ ground-truth/*.tif
 !ground-truth/20151125/Patches/*
 *.h5
 *.keras
+training_attempts.txt
+.vs/*
+.vs
