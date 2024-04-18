@@ -1,0 +1,5 @@
+              -- Land --- Sand --- Seaweed -- Rock -- Mussel -- Salt marsh - Water - Seagrass - Cloud 
+F1            0.124027  0.254347  0.000000  0.000000  0.000000  0.000000  0.000000  0.000000  nan 
+Recall        0.146959  0.820517  0.000000  0.000000  0.000000  0.000000  0.000000  0.000000  nan 
+Precision     0.433386  0.217500  nan  nan  nan  nan  nan  nan  nan 
+Overall Accuracy 0.242250 
