@@ -5,11 +5,11 @@ import json
 import tensorflow as tf
 
 ## PARAMS
-img_size = (64, 64)
-num_classes = 6
-get_dataset_batch_size = 32
-base_epochs = 100
-transfer_epochs = 100
+IMG_SIZE = (64, 64)
+CLASS_NUM = 6
+BATCH_SIZE = 50
+BASE_MODEL_EPOCHS = 50
+TRANSFER_LEARNING_EPOCHS = 70
 
 import get_dataset as ds
 
@@ -104,7 +104,7 @@ def get_imagenet_resnet_model():
     x = layers.UpSampling2D(2)(x)
     
     # Add a per-pixel classification layer
-    outputs = layers.Conv2D(num_classes, 3, activation="softmax", padding="same")(x)
+    outputs = layers.Conv2D(CLASS_NUM, 3, activation="softmax", padding="same")(x)
 
     # Define the model
     model = keras.Model(inputs, outputs)
@@ -137,6 +137,8 @@ def train_base_model(train_dataset, valid_dataset, base_model, model_name):
         verbose=0,
         save_best_only=True,
     )
+    earlyStop = tf.keras.callbacks.EarlyStopping(monitor='val_accuracy',
+                                              patience=6)
     # Configure the model for training.
     # We use the "sparse" version of categorical_crossentropy
     # because our target data is integers.
@@ -147,19 +149,19 @@ def train_base_model(train_dataset, valid_dataset, base_model, model_name):
     )
     history = base_model.fit(
         train_dataset,
-        epochs=base_epochs,
+        epochs=BASE_MODEL_EPOCHS,
         validation_data=valid_dataset,
-        callbacks=checkpoint,
+        callbacks=[checkpoint, earlyStop],
         verbose=2
     )
     results = ''
-    for i in range (0, transfer_epochs):
+    for i in range (0, len(history.history['accuracy'])):
         results += '(%d, %1.4f)'%(i+1, history.history['accuracy'][i])
-    for i in range (0, transfer_epochs):
+    for i in range (0, len(history.history['accuracy'])):
         results += '(%d, %1.4f)'%(i+1, history.history['val_accuracy'][i])
     with open('..\\model_training_stats_base.txt', 'w') as f:
         json.dump(results, f)
-    tile_model.save("full_model_%s_%s.keras"%(model_name,tile_name))
+    tile_model.save("full_model_%s.keras"%(model_name))
     # Saves the weights for use later
     base_model.save("full_model_%s.keras"%model_name)
     return base_model
@@ -171,25 +173,26 @@ def transfer_learn_model(train_dataset, valid_dataset, tile_model, model_name, t
         verbose=0,
         save_best_only=True,
     )
+    # Stops is theer in no progress in the loss after 4 epochs
+    earlyStop = tf.keras.callbacks.EarlyStopping(monitor='loss',
+                                              patience=4)
     # Configure the model for training.
-    # We use the "sparse" version of categorical_crossentropy
-    # because our target data is integers.
     tile_model.compile(
-        optimizer=keras.optimizers.Adam(1e-6),
+        optimizer=keras.optimizers.Adam(1e-7),
         loss="sparse_categorical_crossentropy",
         metrics=['accuracy']
     )
     history = tile_model.fit(
         train_dataset,
-        epochs=transfer_epochs,
+        epochs=TRANSFER_LEARNING_EPOCHS,
         validation_data=valid_dataset,
-        callbacks=checkpoint,
+        callbacks=[checkpoint, earlyStop],
         verbose=2
     )
     results = ''
-    for i in range (0, transfer_epochs):
+    for i in range (0, len(history.history['accuracy'])):
         results += '(%d, %1.4f)'%(i+1, history.history['accuracy'][i])
-    for i in range (0, transfer_epochs):
+    for i in range (0, len(history.history['accuracy'])):
         results += '(%d, %1.4f)'%(i+1, history.history['val_accuracy'][i])
     with open('..\\model_training_stats_transfer_%s.txt'%tile_name, 'w') as f:
         json.dump(results, f)
@@ -199,7 +202,7 @@ def transfer_learn_model(train_dataset, valid_dataset, tile_model, model_name, t
 def validate_model(val_input_img_paths, val_target_img_paths, model):
     # Generate predictions for all images in the validation set
     val_dataset = ds.get_dataset(
-        get_dataset_batch_size, img_size, val_input_img_paths, val_target_img_paths
+        BATCH_SIZE, IMG_SIZE, val_input_img_paths, val_target_img_paths
     )
     val_preds = model.predict(val_dataset, verbose=0)
     return val_preds

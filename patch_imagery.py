@@ -6,15 +6,15 @@ import tifffile as tiff
 import fiona
 from PIL import Image
 
-images = ['20191211','20191027','20190627','20190227', '20190123',
+IMAGES = ['20191211','20191027','20190627','20190227', '20190123',
           '20181224','20181010','20180624','20171126','20171116',
           '20170717','20170525','20170125','20161226','20161129',
           '20161116','20160609','20160420','20160210','20151125']
-size_gnd_tr = [(576,768,1),(448,192,1),(256,1280,1),(192,896,1)]
-area_name = ['Fenham', 'Budle', 'Beadnell', 'Embleton']
+GT_SIZE = [(576,768,1),(448,192,1),(256,1280,1),(192,896,1)]
+AREA_NAME = ['Fenham', 'Budle', 'Beadnell', 'Embleton']
 
 # Loops through each image that needs patchifying
-for image_name in images[0:20]:
+for image_name in IMAGES[0:20]:
     area_i = 0
     # Reads the raster file for the ground-truth
     with rasterio.open('.\\ground-truth\\' + image_name + '\\' + image_name + '_GT.tif', 'r', nodata=1.0) as ds:
@@ -35,18 +35,18 @@ for image_name in images[0:20]:
                        for z in range(patches.shape[2]):
                            single_patch = patches[x, y, z, :, :, :]
                            # Save each patch as a separate GeoTIFF file
-                           tiff.imwrite('./ground-truth/' + image_name + '/Patches/' + area_name[area_i] + f'_image_{x}_{y}.tif', single_patch)
+                           tiff.imwrite('./ground-truth/' + image_name + '/Patches/' + AREA_NAME[area_i] + f'_image_{x}_{y}.tif', single_patch)
                            
-                           img = Image.open('./ground-truth/' + image_name + '/Patches/' + area_name[area_i] + f'_image_{x}_{y}.tif')
+                           img = Image.open('./ground-truth/' + image_name + '/Patches/' + AREA_NAME[area_i] + f'_image_{x}_{y}.tif')
                            img = img.convert('RGB')
-                           img.save('./ground-truth/' + image_name + '/Patches/' + area_name[area_i] + f'_image_{x}_{y}.png', 'PNG')
+                           img.save('./ground-truth/' + image_name + '/Patches/' + AREA_NAME[area_i] + f'_image_{x}_{y}.png', 'PNG')
 
-                print('Written ground-truth patches for ' + area_name[area_i])
+                print('Written ground-truth patches for ' + AREA_NAME[area_i])
                 area_i = area_i + 1
 
-size_tci = [(576,768,3),(448,192,3),(256,1280,3),(192,896,3)]
+TCI_SIZE = [(576,768,3),(448,192,3),(256,1280,3),(192,896,3)]
 # Loops through each image that needs patchifying
-for image_name in images[0:20]:
+for image_name in IMAGES[0:20]:
     area_i = 0
     # Reads the raster file for the ground-truth
     with rasterio.open('.\\TCI\\' + image_name + '\\' + image_name + '.tif', 'r', nodata = 0.0) as ds:
@@ -66,18 +66,12 @@ for image_name in images[0:20]:
                     for y in range(patches.shape[1]):
                         for z in range(patches.shape[2]):
                             single_patch = patches[x, y, z, :, :, :]
-                            tiff.imwrite('./TCI/' + image_name + '/Patches/' + area_name[area_i] + f'_image_{x}_{y}.tif', single_patch)
+                            tiff.imwrite('./TCI/' + image_name + '/Patches/' + AREA_NAME[area_i] + f'_image_{x}_{y}.tif', single_patch)
                             
                             im=Image.fromarray(single_patch.astype(np.uint8))
-                            im.save('./TCI/%s/Patches/%s_image_%d_%d.png'%(image_name,area_name[area_i],x,y))
+                            im.save('./TCI/%s/Patches/%s_image_%d_%d.png'%(image_name,AREA_NAME[area_i],x,y))
                             
-                print('Written TCI patches for ' + area_name[area_i])
+                print('Written TCI patches for ' + AREA_NAME[area_i])
                 area_i = area_i + 1
-
-## To Reconstruct
-                #reconstructed_image = patchify.unpatchify(patches, size_tci[area_i])
-                #tiff.imwrite('./TCI/' + image_name + '/ORIGINAL/'+ area_name[area_i] + '_original.tif', reconstructed_image)
-                #print('Patched and reconstructed ' + area_name[area_i])
-                #area_i = area_i + 1
                 
 

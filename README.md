@@ -17,6 +17,7 @@ The following workflow processes imagery such that it generates a model trained 
 - `RESULTS` Folder containing the classification/semantic segmentation results by Model, Training/Control/Transfer Learning, Tile
 - `Outpuf_Tiff` Folder which contains the pre-processed outputted tif bands from acolite - Move to `TCI` after combining to get TCI
 - `datasets/` Some of the ground-truth files before and after combining, and a region of interest (RoI) for square polygons to clip the TCI and ground-truth against during `patch_imagery.py`, and the imgery to pre-process in acolite
+- `display_imge_results.py` Saves regions, results and individual patches to file for a given model
 
 ## Usage
 - Gather the satellite imagery to run through acolite
@@ -27,6 +28,7 @@ The following workflow processes imagery such that it generates a model trained 
 - Place ground-truth, TCIs, and RoI shapefile in folders
 - Run `patch_imagery`
 - Run `u-net_workflow` (set model_configs to custom images and testing image numbers if neccessary and MODEL to which ever model configuration you wish to run)
+- To recreate an TCI region, groundtruth region, result region or find an individual patch use `display_imge_results.py` with your own configurations (what you want to save)
 
 ## NOTE
 All shapefiles, rasters and other geospatial files are using EPSG: 27700. If you use another projection, ensure that all geospatial files are consistent.

@@ -6,15 +6,16 @@ sys.path.append("acolite-main/")
 import acolite as ac
 
 # Variable names
-patch_size = (64, 64, 3)
-imagery_dir = 'C:\\Users\\Lizzie\\Documents\\assignment_code\\datasets\\imagery\\'#'.\\datasets\\imagery\\'
-shapefile_dir = '.\\datasets\\shapefile\\'
+PATCH_SIZE = (64, 64, 3)
+IMAGERY_DIR = 'C:\\Users\\Lizzie\\Documents\\assignment_code\\datasets\\imagery\\'#'.\\datasets\\imagery\\'
+SHAPEFILE_DIR = '.\\datasets\\shapefile\\'
 
-images = ['s20191211','s20191027','s20190627','s20190227', 's20190123',
+IMAGES = ['s20191211','s20191027','s20190627','s20190227', 's20190123',
           's20181224','s20181010','s20180624','s20171126','s20171116',
           's20170717','s20170525','s20170125','s20161226','s20161129',
           's20161116','s20160609','s20160420','s20160210','s20151125']
-imagery_id = {'s20191211':'S2A_MSIL1C_20191211T112451_N0500_R037_T30UWG_20230607T111953.SAFE',
+
+IMAGERY_ID = {'s20191211':'S2A_MSIL1C_20191211T112451_N0500_R037_T30UWG_20230607T111953.SAFE',
               's20191027':'S2B_MSIL1C_20191027T112119_N0500_R037_T30UWG_20230614T154510.SAFE',
               's20190627':'S2A_MSIL1C_20190627T113321_N0500_R080_T30UWG_20230716T095057.SAFE',
               's20190227':'S2A_MSIL1C_20190227T113311_N0207_R080_T30UWG_20190227T133051.SAFE',
@@ -36,10 +37,10 @@ imagery_id = {'s20191211':'S2A_MSIL1C_20191211T112451_N0500_R037_T30UWG_20230607
               's20151125':'S2A_MSIL1C_20151125T113412_N0204_R080_T30UWG_20151125T113411.SAFE'
 }
 
-
-for img in images[16:17]:
+# Pre-processes each tile with acolite dsf
+for img in IMAGES[16:17]:
     settings = {
-        "inputfile": imagery_dir + imagery_id[img],
+        "inputfile": IMAGERY_DIR + IMAGERY_ID[img],
         "output":".\\Output_Cirrus_Change\\",
         "s2_target_res":10, # High resolution result
         "limit":[55.3886, -1.969881, 55.725, -1.524109], # To help handle memory usage
