@@ -1,5 +1,5 @@
 # U-Net CNN Remote Sensing Seagrass
-A repository for the code and images Dissertation at the University of Gloucestershire involving the mapping of seagrass meadows over several years using U-Net CNN. The aim of this dissertation is to investigate the impact of transfer learning on optimising a general model for a specific tile.
+A repository for the code and images Dissertation at the University of Gloucestershire involving the mapping of seagrass meadows over several years using ResNet50 encoder and a RefineNet derived decoder CNN.  The aim of this dissertation is to investigate the impact of transfer learning on optimising a general model for a specific tile.
 
 ## Workflow
 The following workflow processes imagery such that it generates a model trained on one or more tiles which acts as a base model. That model can be directly reused on other tile, as in the control scenario, or optimised using a tile specific training set. The aim is to investigate whether a tile optimised model performs better than a general model and the extent that the type of tiles the base model is trained on impacts the results.
@@ -32,6 +32,3 @@ The following workflow processes imagery such that it generates a model trained 
 
 ## NOTE
 All shapefiles, rasters and other geospatial files are using EPSG: 27700. If you use another projection, ensure that all geospatial files are consistent.
-=======
-# ResNet50-CNN-Remote-Sensing-Seagrass
-A repository for the code and images Dissertation at the University of Gloucestershire involving the mapping of seagrass meadows over several years using ResNet50 encoder and a RefineNet derived decoder CNN. 
